@@ -35,9 +35,10 @@ class Place:
 
 
 class Parser(object):
-    def __init__(self, filepath, api_key):
+    def __init__(self, filepath, api_key, verbose=False):
         self.filepath = filepath
         self.gmaps = googlemaps.Client(key=api_key)
+        self.verbose = verbose
 
     def parse_csv(self):
         places = []
@@ -54,13 +55,17 @@ class Parser(object):
         url = line['URL']
         m = urlRE.match(url)
         m = m.groupdict()
+        _ = m['name']
         data = dataRE.match(m['data'])
         data = data.groupdict()
+        _ = data['start']
         ftid = data['ftid']
 
         place_info = self.gmaps_place_info(ftid)
 
-        print(title, data, place_info)
+        if self.verbose:
+            print(title, note, m, data)
+
         return Place(
             title,
             place_info['geometry']['location']['lat'],
@@ -86,7 +91,7 @@ class Parser(object):
             ]),
         })['result']
 
-    def render_gpx(self, places):
+    def render_gpx(self, places, output_file):
         gpx = gpxpy.gpx.GPX()
 
         for place in places:
@@ -102,7 +107,11 @@ class Parser(object):
             ]
             gpx.waypoints.append(wpt)
 
-        print('Created GPX:', gpx.to_xml())
+        if output_file == '-':
+            print(gpx.to_xml())
+        else:
+            with open(output_file, 'w') as writer:
+                writer.write(gpx.to_xml())
 
 
 def main():
@@ -114,14 +123,18 @@ def main():
     # https://developers.google.com/maps/documentation/places/web-service/get-api-key
     parser.add_argument('--key', required=True,
                         help='Google Maps Places API Key')
-    parser.add_argument('--format', help='Output format')
+    parser.add_argument('--format', help='Format of output')
+    parser.add_argument('--out', default='-', help='Output file')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
 
-    parser = Parser(args.csv, args.key)
-    parsed = parser.parse_csv()
+    p = Parser(args.csv, args.key, verbose=args.verbose)
+    parsed = p.parse_csv()
 
-    if args.out_format == 'gpx':
-        parser.render_gpx(parsed)
+    if args.format == 'gpx':
+        p.render_gpx(parsed, args.out)
+    else:
+        raise Exception('unknown output format: {}'.format(args.format))
 
 
 if __name__ == '__main__':
