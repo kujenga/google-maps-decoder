@@ -14,7 +14,16 @@ import gpxpy.gpxfield
 from xml.etree.ElementTree import Element
 
 
-urlRE = re.compile(
+# For URLs that represent dropped GPS coordinate pins.
+searchURLRE = re.compile(
+    r'https:\/\/www.google.com\/maps\/search\/' +
+    r'(?P<lat>-?[0-9]+\.[0-9]+)' +
+    r',' +
+    r'(?P<lng>-?[0-9]+\.[0-9]+)'
+)
+
+# For URLs that represent a specific known place.
+placeURLRE = re.compile(
     r'https:\/\/www.google.com\/maps\/place\/' +
     r'(?P<name>[^\/]*?)' +
     r'\/' +
@@ -53,7 +62,21 @@ class Parser(object):
         title = line['Title']
         note = line['Note']
         url = line['URL']
-        m = urlRE.match(url)
+
+        s = searchURLRE.match(url)
+        if s is not None:
+            s = s.groupdict()
+            return Place(
+                title,
+                float(s['lat']),
+                float(s['lng']),
+                None,
+                None,
+            )
+
+        m = placeURLRE.match(url)
+        if m is None:
+            print(url)
         m = m.groupdict()
         _ = m['name']
         data = dataRE.match(m['data'])
